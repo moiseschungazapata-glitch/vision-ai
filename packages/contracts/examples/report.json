@@ -1,0 +1,14 @@
+{
+  "id": "77777777-7777-4777-8777-777777777777",
+  "siteId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "reportDate": "2026-11-15",
+  "timezone": "America/Lima",
+  "status": "sent",
+  "eventCount": 126,
+  "metrics": { "criticalEvents": 4, "cameraUptimePercent": 98.65 },
+  "recipients": ["operaciones@example.com"],
+  "filePath": "daily-reports/2026-11-15/planta-central.pdf",
+  "providerMessageId": "resend_example_123",
+  "generatedAt": "2026-11-15T23:56:00-05:00",
+  "sentAt": "2026-11-15T23:57:00-05:00"
+}

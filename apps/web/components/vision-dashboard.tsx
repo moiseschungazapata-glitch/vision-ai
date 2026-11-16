@@ -21,6 +21,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   Menu,
+  Moon,
   Pause,
   Play,
   Radio,
@@ -30,6 +31,7 @@ import {
   ShoppingBag,
   SlidersHorizontal,
   Sparkles,
+  Sun,
   Truck,
   Users,
   Video,
@@ -38,10 +40,14 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useVisionStore } from "@/hooks/use-vision-store";
+import { downloadCsv } from "@/services/vision-local-repository";
+import type { CameraRecord, EventRecord, ReportRecord, UiSettings, UserProfile } from "@/types/vision";
 
 type ModuleKey = "security" | "quality" | "retail" | "mobility";
 type ViewKey = "overview" | "cameras" | "events" | "analytics" | "reports";
+type ModalKind = "camera" | "filters" | "event" | "report" | "settings" | "support" | "profile" | "notifications" | null;
 
 type VisionModule = {
   key: ModuleKey;
@@ -125,23 +131,6 @@ const NAV_ITEMS: { key: ViewKey; label: string; icon: LucideIcon }[] = [
   { key: "reports", label: "Reportes", icon: FileBarChart },
 ];
 
-const ALERTS = [
-  { id: "EVT-2048", type: "EPP incompleto", place: "Zona de carga 02", time: "10:42:08", severity: "Alta", status: "Nuevo" },
-  { id: "EVT-2047", type: "Acceso a zona crítica", place: "Línea de empaque", time: "10:39:31", severity: "Crítica", status: "En revisión" },
-  { id: "EVT-2046", type: "Casco verificado", place: "Almacén norte", time: "10:35:14", severity: "Baja", status: "Resuelto" },
-  { id: "EVT-2045", type: "Permanencia extendida", place: "Andén 04", time: "10:28:52", severity: "Media", status: "Atendido" },
-  { id: "EVT-2044", type: "Chaleco no visible", place: "Acceso principal", time: "10:21:03", severity: "Alta", status: "Descartado" },
-];
-
-const CAMERAS = [
-  { name: "CAM-01", place: "Zona de carga", status: "En línea", fps: "12.4 FPS", latency: "74 ms" },
-  { name: "CAM-02", place: "Línea de empaque", status: "En línea", fps: "11.9 FPS", latency: "81 ms" },
-  { name: "CAM-03", place: "Almacén norte", status: "En línea", fps: "13.1 FPS", latency: "68 ms" },
-  { name: "CAM-04", place: "Acceso principal", status: "Degradada", fps: "7.2 FPS", latency: "218 ms" },
-  { name: "CAM-05", place: "Andén logístico", status: "En línea", fps: "12.0 FPS", latency: "90 ms" },
-  { name: "CAM-06", place: "Área de despacho", status: "Fuera de línea", fps: "—", latency: "—" },
-];
-
 function BrandMark() {
   return (
     <div className="brand-mark" aria-hidden="true">
@@ -153,15 +142,18 @@ function BrandMark() {
   );
 }
 
-function Sidebar({ activeView, setActiveView, mobileOpen, setMobileOpen }: {
+function Sidebar({ activeView, setActiveView, mobileOpen, setMobileOpen, collapsed, onOpen, profile }: {
   activeView: ViewKey;
   setActiveView: (view: ViewKey) => void;
   mobileOpen: boolean;
   setMobileOpen: (open: boolean) => void;
+  collapsed: boolean;
+  onOpen: (modal: Exclude<ModalKind, null>) => void;
+  profile: UserProfile;
 }) {
   return (
     <>
-      <aside className={`sidebar ${mobileOpen ? "sidebar-open" : ""}`}>
+      <aside className={`sidebar ${mobileOpen ? "sidebar-open" : ""} ${collapsed ? "sidebar-collapsed" : ""}`}>
         <div className="brand">
           <BrandMark />
           <div>
@@ -196,8 +188,8 @@ function Sidebar({ activeView, setActiveView, mobileOpen, setMobileOpen }: {
             );
           })}
           <span className="nav-label nav-label-spaced">SISTEMA</span>
-          <button className="nav-item"><SlidersHorizontal size={19} /><span>Configuración</span></button>
-          <button className="nav-item"><LifeBuoy size={19} /><span>Soporte</span></button>
+          <button className="nav-item" onClick={() => onOpen("settings")}><SlidersHorizontal size={19} /><span>Configuración</span></button>
+          <button className="nav-item" onClick={() => onOpen("support")}><LifeBuoy size={19} /><span>Soporte</span></button>
         </nav>
 
         <div className="edge-health">
@@ -206,28 +198,41 @@ function Sidebar({ activeView, setActiveView, mobileOpen, setMobileOpen }: {
           <div className="edge-values"><span>GPU 71%</span><span>42°C</span></div>
         </div>
 
-        <div className="user-card">
-          <div className="avatar">MC</div>
-          <div><strong>Moises Chungaza</strong><span>Administrador</span></div>
+        <button className="user-card" onClick={() => onOpen("profile")} aria-label={`Abrir perfil de ${profile.name}`}>
+          <div className="avatar">{profile.name.split(" ").map(part => part[0]).slice(0,2).join("")}</div>
+          <div><strong>{profile.name}</strong><span>{profile.role}</span></div>
           <Settings size={17} />
-        </div>
+        </button>
       </aside>
       {mobileOpen && <button className="sidebar-backdrop" onClick={() => setMobileOpen(false)} aria-label="Cerrar navegación" />}
     </>
   );
 }
 
-function Topbar({ title, onMenu, onNotify }: { title: string; onMenu: () => void; onNotify: () => void }) {
+function Topbar({ title, onMenu, onNotify, theme, onTheme, query, onQuery }: {
+  title: string;
+  onMenu: () => void;
+  onNotify: () => void;
+  theme: "dark" | "light";
+  onTheme: () => void;
+  query: string;
+  onQuery: (value: string) => void;
+}) {
   return (
     <header className="topbar">
-      <button className="icon-button menu-button" onClick={onMenu} aria-label="Abrir navegación"><Menu size={20} /></button>
-      <div className="topbar-title"><span>OPERACIÓN /</span><strong>{title}</strong></div>
+      <div className="topbar-leading">
+        <button className="icon-button menu-button" onClick={onMenu} aria-label="Mostrar u ocultar navegación"><Menu size={20} /></button>
+        <div className="topbar-title"><span>OPERACIÓN /</span><strong>{title}</strong></div>
+      </div>
       <div className="topbar-actions">
         <label className="search-box">
           <Search size={17} />
-          <input placeholder="Buscar evento, cámara..." aria-label="Buscar" />
+          <input value={query} onChange={event => onQuery(event.target.value)} placeholder="Buscar evento, cámara..." aria-label="Buscar" />
           <kbd>⌘ K</kbd>
         </label>
+        <button className="icon-button theme-toggle" onClick={onTheme} aria-label={theme === "dark" ? "Activar modo claro" : "Activar modo oscuro"} title={theme === "dark" ? "Modo claro" : "Modo oscuro"}>
+          {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
         <button className="icon-button has-badge" onClick={onNotify} aria-label="Notificaciones"><Bell size={19} /><span /></button>
         <div className="system-time"><span>15 NOV 2026</span><strong>10:48:32</strong></div>
       </div>
@@ -383,6 +388,8 @@ function DistributionPanel({ module }: { module: VisionModule }) {
 }
 
 function TrendPanel({ module }: { module: VisionModule }) {
+  const [range, setRange] = useState<"8H" | "24H" | "7D">("8H");
+  const rangeValues = { "8H": "384", "24H": "1,126", "7D": "7,842" };
   const paths: Record<ModuleKey, string> = {
     security: "M0 118 C60 122 72 72 128 88 S218 46 284 70 S370 18 430 45 S520 28 600 50 S690 12 780 30",
     quality: "M0 104 C60 72 100 92 148 66 S240 90 300 48 S410 70 470 40 S600 52 650 24 S730 42 780 18",
@@ -391,8 +398,8 @@ function TrendPanel({ module }: { module: VisionModule }) {
   };
   return (
     <section className="panel trend-panel">
-      <div className="panel-header"><div><span className="eyebrow">ÚLTIMAS 8 HORAS</span><h2>Flujo de actividad</h2></div><div className="segmented"><button className="active">8H</button><button>24H</button><button>7D</button></div></div>
-      <div className="trend-value"><strong>384</strong><span>eventos procesados <em>+12.4%</em></span></div>
+      <div className="panel-header"><div><span className="eyebrow">PERIODO {range}</span><h2>Flujo de actividad</h2></div><div className="segmented">{(["8H","24H","7D"] as const).map(item => <button key={item} className={range === item ? "active" : ""} onClick={() => setRange(item)}>{item}</button>)}</div></div>
+      <div className="trend-value"><strong>{rangeValues[range]}</strong><span>eventos procesados <em>+12.4%</em></span></div>
       <svg viewBox="0 0 780 155" className="trend-chart" preserveAspectRatio="none" aria-label="Gráfico de eventos por hora">
         <defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop stopColor={module.accent} stopOpacity=".32"/><stop offset="1" stopColor={module.accent} stopOpacity="0"/></linearGradient></defs>
         {[20,55,90,125].map(y=><line key={y} x1="0" x2="780" y1={y} y2={y} className="grid-line"/>) }
@@ -404,26 +411,33 @@ function TrendPanel({ module }: { module: VisionModule }) {
   );
 }
 
-function AlertsPanel({ compact = false }: { compact?: boolean }) {
+function AlertsPanel({ alerts, compact = false, onSelect }: { alerts: EventRecord[]; compact?: boolean; onSelect?: (event: EventRecord) => void }) {
   const [query, setQuery] = useState("");
-  const filtered = ALERTS.filter(alert => `${alert.type} ${alert.place} ${alert.id}`.toLowerCase().includes(query.toLowerCase()));
+  const [page, setPage] = useState(0);
+  const filtered = alerts.filter(alert => `${alert.type} ${alert.place} ${alert.id}`.toLowerCase().includes(query.toLowerCase()));
+  const pageSize = compact ? 4 : 5;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages - 1);
+  const visible = filtered.slice(safePage * pageSize, safePage * pageSize + pageSize);
   return (
     <section className={`panel alerts-panel ${compact ? "compact" : ""}`}>
       <div className="panel-header"><div><span className="eyebrow">TRAZABILIDAD</span><h2>Eventos recientes</h2></div>{!compact && <label className="table-search"><Search size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Filtrar eventos"/></label>}<button className="text-button">Ver todos <span>→</span></button></div>
       <div className="alerts-list">
-        {filtered.slice(0, compact ? 4 : 5).map((alert) => (
-          <button className="alert-row" key={alert.id}>
+        {visible.map((alert) => (
+          <button className="alert-row" key={alert.id} onClick={() => onSelect?.(alert)}>
             <span className={`severity severity-${alert.severity.toLowerCase().replace("í","i")}`}><AlertTriangle size={15}/></span>
             <span className="alert-main"><strong>{alert.type}</strong><small>{alert.place} · {alert.id}</small></span>
             <span className="alert-status"><em>{alert.status}</em><small>{alert.time}</small></span>
           </button>
         ))}
+        {filtered.length === 0 && <div className="empty-state"><Search size={21}/><strong>Sin coincidencias</strong><span>Prueba con otro evento, cámara o identificador.</span></div>}
       </div>
+      {!compact && totalPages > 1 && <div className="table-pagination"><span>Página {safePage + 1} de {totalPages}</span><div><button onClick={() => setPage(current => Math.max(0, current - 1))} disabled={safePage === 0}>Anterior</button><button onClick={() => setPage(current => Math.min(totalPages - 1, current + 1))} disabled={safePage >= totalPages - 1}>Siguiente</button></div></div>}
     </section>
   );
 }
 
-function Overview({ module, isLive, setIsLive }: { module: VisionModule; isLive: boolean; setIsLive: (live: boolean) => void }) {
+function Overview({ module, isLive, setIsLive, events }: { module: VisionModule; isLive: boolean; setIsLive: (live: boolean) => void; events: EventRecord[] }) {
   return (
     <>
       <div className="stats-grid">
@@ -433,32 +447,69 @@ function Overview({ module, isLive, setIsLive }: { module: VisionModule; isLive:
         <StatCard label="Precisión promedio" value={module.accuracy} delta="Dentro del objetivo" icon={CircleGauge} tone="purple"/>
       </div>
       <div className="primary-grid"><LiveMonitor module={module} isLive={isLive} setIsLive={setIsLive}/><DistributionPanel module={module}/></div>
-      <div className="secondary-grid"><TrendPanel module={module}/><AlertsPanel compact/></div>
+      <div className="secondary-grid"><TrendPanel module={module}/><AlertsPanel alerts={events} compact/></div>
     </>
   );
 }
 
-function CamerasView({ module }: { module: VisionModule }) {
+function CamerasView({ module, cameras, query, onOpen }: { module: VisionModule; cameras: CameraRecord[]; query: string; onOpen: (modal: Exclude<ModalKind, null>) => void }) {
+  const visibleCameras = cameras.filter(camera => `${camera.name} ${camera.place} ${camera.status} ${camera.profile}`.toLowerCase().includes(query.toLowerCase()));
+  const online = cameras.filter(camera => camera.status === "En línea").length;
   return (
     <div className="view-stack">
-      <div className="view-heading"><div><span className="eyebrow">INFRAESTRUCTURA VISUAL</span><h1>Cámaras y fuentes de video</h1><p>Supervisa conexión, rendimiento y perfil activo de cada fuente.</p></div><button className="primary-button"><Camera size={17}/>Registrar cámara</button></div>
+      <div className="view-heading"><div><span className="eyebrow">INFRAESTRUCTURA VISUAL</span><h1>Cámaras y fuentes de video</h1><p>Supervisa conexión, rendimiento y perfil activo de cada fuente.</p></div><button className="primary-button" onClick={() => onOpen("camera")}><Camera size={17}/>Registrar cámara</button></div>
+      <div className="section-metrics">
+        <article><span><Video size={15}/>Fuentes registradas</span><strong>{cameras.length}</strong><small>{online} transmitiendo ahora</small></article>
+        <article><span><Wifi size={15}/>Disponibilidad</span><strong>99.12%</strong><small>+0.4% frente a ayer</small></article>
+        <article><span><Gauge size={15}/>FPS promedio</span><strong>12.4</strong><small>Dentro del perfil objetivo</small></article>
+        <article><span><Zap size={15}/>Latencia media</span><strong>86 ms</strong><small>Procesamiento en edge</small></article>
+      </div>
       <div className="camera-grid">
-        {CAMERAS.map((camera,index)=><article className="camera-card" key={camera.name}>
+        {visibleCameras.map((camera,index)=><article className="camera-card" key={camera.id}>
           <div className="camera-preview"><SceneArtwork moduleKey={index%2===0?module.key:"security"}/><span className={`camera-status ${camera.status.toLowerCase().replaceAll(" ","-")}`}>{camera.status}</span><span className="camera-number">{camera.name}</span></div>
-          <div className="camera-card-body"><div><strong>{camera.place}</strong><span>Perfil {module.short}</span></div><button className="icon-button"><Settings size={16}/></button></div>
+          <div className="camera-card-body"><div><strong>{camera.place}</strong><span>Perfil {camera.profile || module.short}</span></div><button className="icon-button" onClick={() => onOpen("settings")} aria-label={`Configurar ${camera.name}`}><Settings size={16}/></button></div>
           <div className="camera-metrics"><span><Gauge size={14}/>{camera.fps}</span><span><Activity size={14}/>{camera.latency}</span></div>
         </article>)}
+        {visibleCameras.length === 0 && <div className="empty-state grid-empty"><Search size={22}/><strong>No se encontraron cámaras</strong><span>Cambia la búsqueda o registra una nueva fuente.</span></div>}
       </div>
     </div>
   );
 }
 
-function EventsView() {
+function EventsView({ events, query, advancedStatus, advancedSeverity, onOpen, onToast, onSelect }: { events: EventRecord[]; query: string; advancedStatus: string; advancedSeverity: string; onOpen: (modal: Exclude<ModalKind, null>) => void; onToast: (message: string) => void; onSelect: (event: EventRecord) => void }) {
+  const [filter, setFilter] = useState("Todos");
+  const counts = {
+    Todos: events.length,
+    Nuevos: events.filter(event => event.status === "Nuevo").length,
+    "En revisión": events.filter(event => event.status === "En revisión").length,
+    Resueltos: events.filter(event => ["Resuelto", "Atendido", "Descartado"].includes(event.status)).length,
+  };
+  const filters = Object.entries(counts);
+  const visibleEvents = events.filter(event => {
+    const matchesQuery = `${event.id} ${event.type} ${event.place} ${event.module}`.toLowerCase().includes(query.toLowerCase());
+    const matchesStatus = filter === "Todos" || (filter === "Nuevos" && event.status === "Nuevo") || (filter === "En revisión" && event.status === "En revisión") || (filter === "Resueltos" && ["Resuelto", "Atendido", "Descartado"].includes(event.status));
+    const matchesAdvancedStatus = advancedStatus === "Todos" || event.status === advancedStatus;
+    const matchesAdvancedSeverity = advancedSeverity === "Todas" || event.severity === advancedSeverity;
+    return matchesQuery && matchesStatus && matchesAdvancedStatus && matchesAdvancedSeverity;
+  });
+  const exportEvents = () => {
+    downloadCsv("vision-ai-eventos.csv", visibleEvents.map(event => ({ ID: event.id, Evento: event.type, Ubicación: event.place, Hora: event.time, Severidad: event.severity, Estado: event.status, Módulo: event.module })));
+    onToast(`${visibleEvents.length} eventos exportados en CSV.`);
+  };
   return (
     <div className="view-stack">
-      <div className="view-heading"><div><span className="eyebrow">CENTRO DE INCIDENTES</span><h1>Eventos operativos</h1><p>Consulta, valida y clasifica los resultados generados por las reglas.</p></div><button className="secondary-button"><Download size={17}/>Exportar CSV</button></div>
-      <div className="filter-strip"><button className="active">Todos <span>128</span></button><button>Nuevos <span>12</span></button><button>En revisión <span>08</span></button><button>Resueltos <span>96</span></button><button><Filter size={15}/>Más filtros</button></div>
-      <AlertsPanel/>
+      <div className="view-heading"><div><span className="eyebrow">CENTRO DE INCIDENTES</span><h1>Eventos operativos</h1><p>Consulta, valida y clasifica los resultados generados por las reglas.</p></div><button className="secondary-button" onClick={exportEvents}><Download size={17}/>Exportar CSV</button></div>
+      <div className="section-metrics event-metrics">
+        <article><span><AlertTriangle size={15}/>Eventos hoy</span><strong>{events.length}</strong><small>{counts.Nuevos} requieren atención</small></article>
+        <article><span><Clock3 size={15}/>Respuesta media</span><strong>01:42</strong><small>−18 s frente a la semana pasada</small></article>
+        <article><span><CheckCircle2 size={15}/>Confirmados</span><strong>84.7%</strong><small>108 eventos validados</small></article>
+        <article><span><ShieldCheck size={15}/>Falsos positivos</span><strong>4.2%</strong><small>Objetivo menor a 5%</small></article>
+      </div>
+      <div className="filter-strip">
+        {filters.map(([label, count]) => <button key={label} className={filter === label ? "active" : ""} onClick={() => setFilter(label)}>{label} <span>{count}</span></button>)}
+        <button onClick={() => onOpen("filters")}><Filter size={15}/>Más filtros</button>
+      </div>
+      <AlertsPanel alerts={visibleEvents} onSelect={event => { onSelect(event); onOpen("event"); }}/>
       <div className="events-summary"><div><span>Tiempo medio de respuesta</span><strong>01:42</strong><small>−18 segundos</small></div><div><span>Tasa de confirmación</span><strong>84.7%</strong><small>+3.1% esta semana</small></div><div><span>Falsos positivos</span><strong>4.2%</strong><small>Objetivo &lt; 5%</small></div></div>
     </div>
   );
@@ -470,55 +521,310 @@ function AnalyticsView({ module }: { module: VisionModule }) {
       <div className="view-heading"><div><span className="eyebrow">INTELIGENCIA OPERATIVA</span><h1>Analítica de {module.short.toLowerCase()}</h1><p>Tendencias, calidad del modelo y desempeño del nodo edge.</p></div><div className="date-range"><Clock3 size={16}/>09 Nov — 15 Nov<ChevronDown size={15}/></div></div>
       <div className="analytics-grid"><TrendPanel module={module}/><DistributionPanel module={module}/></div>
       <div className="analytics-cards"><article><span>Latencia p95</span><strong>1.24 s</strong><div className="mini-progress"><i style={{width:"62%"}}/></div><small>Meta ≤ 2 segundos</small></article><article><span>FPS de inferencia</span><strong>12.4</strong><div className="mini-progress"><i style={{width:"78%"}}/></div><small>Perfil objetivo 8–15 FPS</small></article><article><span>Frames descartados</span><strong>0.8%</strong><div className="mini-progress"><i style={{width:"8%"}}/></div><small>Señal estable</small></article><article><span>Disponibilidad</span><strong>99.12%</strong><div className="mini-progress"><i style={{width:"99%"}}/></div><small>Últimos 7 días</small></article></div>
+      <section className="panel activity-matrix">
+        <div className="panel-header"><div><span className="eyebrow">PATRÓN SEMANAL</span><h2>Intensidad de detecciones por hora</h2></div><span className="matrix-legend">MENOR <i/><i/><i/><i/> MAYOR</span></div>
+        <div className="matrix-body">
+          {["LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB", "DOM"].map((day, dayIndex) => <div className="matrix-row" key={day}><span>{day}</span>{Array.from({length: 16}, (_, index) => <i key={index} style={{opacity: .12 + (((index * 7 + dayIndex * 5) % 9) / 10)}} />)}</div>)}
+          <div className="matrix-hours"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span></div>
+        </div>
+      </section>
     </div>
   );
 }
 
-function ReportsView() {
-  const reports = [
-    {date:"14 NOV 2026",title:"Resumen diario · Planta Central",events:"116 eventos",status:"Entregado",time:"01:15"},
-    {date:"13 NOV 2026",title:"Resumen diario · Planta Central",events:"94 eventos",status:"Entregado",time:"01:15"},
-    {date:"12 NOV 2026",title:"Resumen diario · Planta Central",events:"Sin eventos",status:"Entregado",time:"01:15"},
-    {date:"11 NOV 2026",title:"Resumen diario · Planta Central",events:"132 eventos",status:"Revisar",time:"01:16"},
-  ];
+function ReportsView({ reports, query, onOpen, onToast }: { reports: ReportRecord[]; query: string; onOpen: (modal: Exclude<ModalKind, null>) => void; onToast: (message: string) => void }) {
+  const visibleReports = reports.filter(report => `${report.id} ${report.date} ${report.title} ${report.status}`.toLowerCase().includes(query.toLowerCase()));
+  const downloadReport = (report: ReportRecord) => {
+    downloadCsv(`${report.id.toLowerCase()}.csv`, [{ Reporte: report.title, Fecha: report.date, Eventos: report.events, Estado: report.status, Formato: report.format }]);
+    onToast(`${report.id} descargado correctamente.`);
+  };
   return (
     <div className="view-stack">
-      <div className="view-heading"><div><span className="eyebrow">CIERRE DE JORNADA</span><h1>Reportes automáticos</h1><p>Historial de resúmenes diarios y estado de entrega a administradores.</p></div><button className="primary-button"><FileBarChart size={17}/>Generar reporte</button></div>
+      <div className="view-heading"><div><span className="eyebrow">CIERRE DE JORNADA</span><h1>Reportes automáticos</h1><p>Historial de resúmenes diarios y estado de entrega a administradores.</p></div><button className="primary-button" onClick={() => onOpen("report")}><FileBarChart size={17}/>Generar reporte</button></div>
+      <div className="section-metrics report-metrics">
+        <article><span><FileBarChart size={15}/>Generados este mes</span><strong>15</strong><small>100% completados</small></article>
+        <article><span><CheckCircle2 size={15}/>Entregas correctas</span><strong>98.6%</strong><small>Resend operativo</small></article>
+        <article><span><Users size={15}/>Destinatarios</span><strong>03</strong><small>Administradores activos</small></article>
+        <article><span><Clock3 size={15}/>Próxima ejecución</span><strong>01:15</strong><small>Zona horaria Lima</small></article>
+      </div>
       <div className="report-hero"><div className="report-hero-icon"><Sparkles size={24}/></div><div><span>PRÓXIMA EJECUCIÓN</span><strong>Hoy, 01:15 a. m.</strong><p>El reporte consolidará la actividad REAL de la jornada y será enviado a 3 administradores.</p></div><div className="report-countdown"><span>EN</span><strong>14:26:18</strong></div></div>
       <div className="report-list">
-        {reports.map(report=><article key={report.date}><div className="file-icon"><FileBarChart size={20}/></div><div className="report-info"><span>{report.date}</span><strong>{report.title}</strong><small>{report.events} · Seguridad, Calidad, Retail y Logística</small></div><div className="delivery-status"><span className={report.status==="Entregado"?"delivered":"review"}><CheckCircle2 size={14}/>{report.status}</span><small>Resend · {report.time}</small></div><button className="icon-button"><Download size={17}/></button></article>)}
+        {visibleReports.map(report=><article key={report.id}><div className="file-icon"><FileBarChart size={20}/></div><div className="report-info"><span>{report.date}</span><strong>{report.title}</strong><small>{report.events} · Seguridad, Calidad, Retail y Logística</small></div><div className="delivery-status"><span className={report.status==="Entregado"?"delivered":"review"}><CheckCircle2 size={14}/>{report.status}</span><small>{report.format} · {report.time}</small></div><button className="icon-button" onClick={() => downloadReport(report)} aria-label={`Descargar reporte del ${report.date}`}><Download size={17}/></button></article>)}
+        {visibleReports.length === 0 && <div className="empty-state"><Search size={22}/><strong>No se encontraron reportes</strong><span>Prueba con otra fecha o identificador.</span></div>}
       </div>
     </div>
   );
 }
 
+function VisualModal({ kind, onClose, onConfirm, selectedEvent, settings, profile }: {
+  kind: Exclude<ModalKind, null>;
+  onClose: () => void;
+  onConfirm: (message: string, data: Record<string, FormDataEntryValue>) => void;
+  selectedEvent?: EventRecord | null;
+  settings?: UiSettings;
+  profile?: UserProfile;
+}) {
+  useEffect(() => {
+    const closeWithEscape = (event: KeyboardEvent) => event.key === "Escape" && onClose();
+    document.addEventListener("keydown", closeWithEscape);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", closeWithEscape);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [onClose]);
+
+  const meta = {
+    camera: { eyebrow: "NUEVA FUENTE", title: "Registrar cámara", icon: Camera },
+    filters: { eyebrow: "CONSULTA AVANZADA", title: "Filtros de eventos", icon: Filter },
+    event: { eyebrow: "EVT-2048", title: "Detalle del evento", icon: AlertTriangle },
+    report: { eyebrow: "REPORTE BAJO DEMANDA", title: "Generar resumen", icon: FileBarChart },
+    settings: { eyebrow: "PREFERENCIAS", title: "Configuración visual", icon: SlidersHorizontal },
+    support: { eyebrow: "CENTRO DE AYUDA", title: "Soporte VISION AI", icon: LifeBuoy },
+    profile: { eyebrow: "CUENTA OPERATIVA", title: "Perfil de usuario", icon: Users },
+    notifications: { eyebrow: "ACTIVIDAD RECIENTE", title: "Notificaciones", icon: Bell },
+  }[kind];
+  const ModalIcon = meta.icon;
+  const [filterModules, setFilterModules] = useState(["Seguridad"]);
+  const [reportSections, setReportSections] = useState(["Resumen", "Métricas", "Eventos"]);
+  const toggleChoice = (value: string, values: string[], setValues: (items: string[]) => void) => setValues(values.includes(value) ? values.filter(item => item !== value) : [...values, value]);
+
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+    const message = kind === "camera" ? "Cámara registrada y guardada localmente." : kind === "report" ? "Reporte generado y guardado localmente." : kind === "event" ? "Evento revisado correctamente." : "Cambios guardados correctamente.";
+    onConfirm(message, data);
+    onClose();
+  };
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={event => event.target === event.currentTarget && onClose()}>
+      <section className="visual-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <header className="modal-header">
+          <div className="modal-heading-icon"><ModalIcon size={20}/></div>
+          <div><span className="eyebrow">{meta.eyebrow}</span><h2 id="modal-title">{meta.title}</h2></div>
+          <button className="icon-button" onClick={onClose} aria-label="Cerrar ventana" data-no-confirmation="true"><X size={18}/></button>
+        </header>
+
+        <form id="vision-modal-form" className="modal-body" onSubmit={submit}>
+          {kind === "camera" && <>
+            <div className="form-grid"><label><span>Nombre de la cámara</span><input name="cameraName" defaultValue="CAM-07" required/></label><label><span>Ubicación</span><input name="cameraPlace" placeholder="Ej. Patio de maniobras" required/></label></div>
+            <label><span>Origen de video</span><select name="cameraType" defaultValue="RTSP"><option value="RTSP">RTSP / cámara IP</option><option value="USB">Cámara USB</option></select></label>
+            <label><span>URL o dispositivo</span><input name="cameraSource" placeholder="rtsp://usuario:••••@192.168.1.20/stream" required/></label>
+            <div className="connection-preview"><Wifi size={18}/><div><strong>Validación pendiente</strong><span>La conexión se probará cuando se implemente el agente Edge.</span></div><em>EDGE</em></div>
+          </>}
+
+          {kind === "filters" && <>
+            <div className="form-grid"><label><span>Desde</span><input name="from" type="date" defaultValue="2026-11-15"/></label><label><span>Hasta</span><input name="to" type="date" defaultValue="2026-11-15"/></label></div>
+            <div className="form-grid"><label><span>Severidad</span><select name="severity"><option>Todas</option><option>Crítica</option><option>Alta</option><option>Media</option><option>Baja</option></select></label><label><span>Estado</span><select name="status"><option>Todos</option><option>Nuevo</option><option>En revisión</option><option>Resuelto</option></select></label></div>
+            <div className="choice-group"><span>Módulos incluidos</span><div>{["Seguridad","Calidad","Retail","Logística"].map(item => <button key={item} type="button" className={filterModules.includes(item) ? "selected" : ""} onClick={() => toggleChoice(item, filterModules, setFilterModules)}>{item}</button>)}</div></div>
+          </>}
+
+          {kind === "event" && <>
+            <div className="event-detail-hero"><div className="severity severity-critica"><AlertTriangle size={18}/></div><div><strong>{selectedEvent?.type ?? "Evento detectado"}</strong><span>{selectedEvent?.place ?? "Planta Central"} · {selectedEvent?.id ?? "EVT"} · {selectedEvent?.time ?? "Ahora"}</span></div><em>{selectedEvent?.severity.toUpperCase() ?? "ALTA"}</em></div>
+            <div className="event-evidence"><SceneArtwork moduleKey="security"/><span>CONFIANZA 96.8%</span></div>
+            <div className="detail-grid"><div><span>Regla</span><strong>ppe-v3</strong></div><div><span>Track</span><strong>TRK-8841</strong></div><div><span>Módulo</span><strong>{selectedEvent?.module ?? "Seguridad"}</strong></div><div><span>Estado</span><strong>{selectedEvent?.status ?? "Nuevo"}</strong></div></div>
+            <label><span>Resultado de revisión</span><select name="eventStatus" defaultValue={selectedEvent?.status ?? "En revisión"}><option>En revisión</option><option>Resuelto</option><option>Atendido</option><option>Descartado</option></select></label>
+            <label><span>Comentario de revisión</span><textarea name="eventComment" defaultValue={selectedEvent?.comment} placeholder="Añade una observación para auditoría..."/></label>
+          </>}
+
+          {kind === "report" && <>
+            <div className="form-grid"><label><span>Fecha del reporte</span><input name="reportDate" type="date" defaultValue="2026-11-15"/></label><label><span>Formato</span><select name="reportFormat"><option>PDF ejecutivo</option><option>CSV detallado</option></select></label></div>
+            <div className="choice-group"><span>Contenido</span><div>{["Resumen","Métricas","Eventos","Auditoría"].map(item => <button key={item} type="button" className={reportSections.includes(item) ? "selected" : ""} onClick={() => toggleChoice(item, reportSections, setReportSections)}>{item}</button>)}</div></div>
+            <div className="report-preview-card"><FileBarChart size={25}/><div><strong>Resumen diario · Planta Central</strong><span>4 módulos · 128 eventos · 3 destinatarios</span></div><CheckCircle2 size={18}/></div>
+          </>}
+
+          {kind === "settings" && <>
+            <div className="settings-list"><label><div><strong>Animaciones de interfaz</strong><span>Transiciones, escaneo y telemetría visual.</span></div><input name="animations" type="checkbox" defaultChecked={settings?.animations}/></label><label><div><strong>Alertas sonoras</strong><span>Aviso para eventos de severidad crítica.</span></div><input name="sounds" type="checkbox" defaultChecked={settings?.sounds}/></label><label><div><strong>Modo de alta densidad</strong><span>Muestra más información en cada pantalla.</span></div><input name="dense" type="checkbox" defaultChecked={settings?.dense}/></label></div>
+            <label><span>Idioma de la interfaz</span><select name="language" defaultValue={settings?.language ?? "Español"}><option>Español</option><option>English</option></select></label>
+          </>}
+
+          {kind === "support" && <>
+            <div className="support-grid"><button type="button"><LifeBuoy size={20}/><strong>Guía operativa</strong><span>Consulta flujos y conceptos.</span></button><button type="button"><Activity size={20}/><strong>Estado del sistema</strong><span>Revisa servicios y cámaras.</span></button></div>
+            <label><span>Describe tu consulta</span><textarea name="supportMessage" placeholder="¿En qué podemos ayudarte?" required/></label>
+            <div className="connection-preview"><Clock3 size={18}/><div><strong>Atención administrativa</strong><span>Tiempo de respuesta estimado: menos de 24 horas.</span></div><em>SLA</em></div>
+          </>}
+
+          {kind === "profile" && <>
+            <div className="profile-hero"><div className="avatar avatar-large">{profile?.name.split(" ").map(part => part[0]).slice(0,2).join("") ?? "MC"}</div><div><strong>{profile?.name ?? "Moises Chungaza"}</strong><span>{profile?.role ?? "Administrador"} · Planta Central</span></div><em>ACTIVO</em></div>
+            <div className="detail-grid"><div><span>Rol</span><strong>{profile?.role ?? "Administrador"}</strong></div><div><span>Zona horaria</span><strong>{profile?.timezone ?? "America/Lima"}</strong></div><div><span>Último acceso</span><strong>Ahora</strong></div><div><span>Sesión</span><strong>Segura</strong></div></div>
+            <label><span>Nombre</span><input name="profileName" defaultValue={profile?.name} required/></label>
+            <label><span>Correo de notificaciones</span><input name="profileEmail" type="email" defaultValue={profile?.email} required/></label>
+          </>}
+
+          {kind === "notifications" && <div className="notification-list">
+            <button><span className="severity severity-critica"><AlertTriangle size={15}/></span><div><strong>3 eventos requieren revisión</strong><small>Seguridad industrial · hace 4 min</small></div><em>NUEVO</em></button>
+            <button><span className="severity severity-baja"><CheckCircle2 size={15}/></span><div><strong>Reporte diario entregado</strong><small>3 destinatarios · hace 9 h</small></div></button>
+            <button><span className="severity"><Wifi size={15}/></span><div><strong>CAM-04 presenta latencia elevada</strong><small>218 ms · hace 16 min</small></div></button>
+          </div>}
+        </form>
+
+        <footer className="modal-footer">
+          <span>PROTOTIPO VISUAL · SIN CAMBIOS REALES</span>
+          <div><button type="button" className="secondary-button" onClick={onClose} data-no-confirmation="true">Cancelar</button>
+          {kind !== "notifications" && <button type="submit" form="vision-modal-form" className="primary-button">Aplicar</button>}</div>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
 export function VisionDashboard() {
+  const store = useVisionStore();
   const [activeModule, setActiveModule] = useState<ModuleKey>("security");
   const [activeView, setActiveView] = useState<ViewKey>("overview");
   const [isLive, setIsLive] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [toast, setToast] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [activeModal, setActiveModal] = useState<ModalKind>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [selectedEvent, setSelectedEvent] = useState<EventRecord | null>(null);
+  const [advancedStatus, setAdvancedStatus] = useState("Todos");
+  const [advancedSeverity, setAdvancedSeverity] = useState("Todas");
   const module = useMemo(() => MODULES.find(item => item.key === activeModule) ?? MODULES[0], [activeModule]);
   const title = NAV_ITEMS.find(item => item.key === activeView)?.label ?? "Centro de control";
+
+  useEffect(() => {
+    const savedTheme = window.localStorage.getItem("vision-ai-theme");
+    const savedSidebar = window.localStorage.getItem("vision-ai-sidebar");
+    if (savedTheme === "light" || savedTheme === "dark") setTheme(savedTheme);
+    if (savedSidebar === "collapsed") setSidebarCollapsed(true);
+  }, []);
+
+  const toggleTheme = () => {
+    setTheme(current => {
+      const next = current === "dark" ? "light" : "dark";
+      window.localStorage.setItem("vision-ai-theme", next);
+      return next;
+    });
+  };
+
+  const toggleNavigation = () => {
+    if (window.matchMedia("(max-width: 980px)").matches) {
+      setMobileOpen(true);
+      return;
+    }
+    setSidebarCollapsed(current => {
+      const next = !current;
+      window.localStorage.setItem("vision-ai-sidebar", next ? "collapsed" : "expanded");
+      return next;
+    });
+  };
+
+  const showToast = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(null), 2800);
+  };
+
+  const handleModalSubmit = (message: string, data: Record<string, FormDataEntryValue>) => {
+    if (activeModal === "camera") {
+      const name = String(data.cameraName || `CAM-${store.cameras.length + 1}`);
+      store.addCamera({
+        id: `cam-${Date.now()}`,
+        name,
+        place: String(data.cameraPlace || "Sin ubicación"),
+        status: "En línea",
+        fps: "12.0 FPS",
+        latency: "Pendiente",
+        profile: module.short,
+        source: String(data.cameraType || "RTSP"),
+      });
+    }
+    if (activeModal === "event" && selectedEvent) {
+      store.updateEvent(selectedEvent.id, {
+        status: String(data.eventStatus || "En revisión") as EventRecord["status"],
+        comment: String(data.eventComment || ""),
+      });
+    }
+    if (activeModal === "report") {
+      const dateValue = String(data.reportDate || "2026-11-15");
+      const date = new Intl.DateTimeFormat("es-PE", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${dateValue}T12:00:00Z`)).toUpperCase().replaceAll(".", "");
+      store.addReport({
+        id: `REP-${Date.now()}`,
+        date,
+        title: "Resumen diario · Planta Central",
+        events: `${store.events.length} eventos`,
+        status: "Entregado",
+        time: new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }),
+        format: String(data.reportFormat || "PDF ejecutivo"),
+      });
+    }
+    if (activeModal === "settings") {
+      store.updateSettings({
+        animations: "animations" in data,
+        sounds: "sounds" in data,
+        dense: "dense" in data,
+        language: String(data.language || "Español"),
+      });
+    }
+    if (activeModal === "profile") {
+      store.updateProfile({
+        ...store.profile,
+        name: String(data.profileName || store.profile.name),
+        email: String(data.profileEmail || store.profile.email),
+      });
+    }
+    if (activeModal === "filters") {
+      setAdvancedStatus(String(data.status || "Todos"));
+      setAdvancedSeverity(String(data.severity || "Todas"));
+    }
+    showToast(message);
+  };
+
+  const confirmButtonAction = (event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    const button = target.closest("button") as HTMLButtonElement | null;
+    if (!button || button.disabled || button.dataset.noConfirmation === "true") return;
+
+    const label = (button.getAttribute("aria-label") || button.title || button.textContent || "Acción")
+      .replace(/\s+/g, " ")
+      .trim();
+    const confirmation = button.dataset.confirmation;
+    const knownMessages: Record<string, string> = {
+      "Centro de control": "Centro de control abierto correctamente.",
+      "Cámaras": "Sección Cámaras abierta correctamente.",
+      "Eventos 12": "Sección Eventos abierta correctamente.",
+      "Analítica": "Sección Analítica abierta correctamente.",
+      "Reportes": "Sección Reportes abierta correctamente.",
+      "Configuración": "Panel de configuración abierto.",
+      "Soporte": "Centro de soporte abierto.",
+      "Activar modo claro": "Modo claro activado.",
+      "Activar modo oscuro": "Modo oscuro activado.",
+      "Mostrar u ocultar navegación": "Menú lateral actualizado.",
+      "Pausar visualización": "Visualización en vivo pausada.",
+      "Reanudar visualización": "Visualización en vivo reanudada.",
+      "Notificaciones": "Centro de notificaciones abierto.",
+      "Registrar cámara": "Formulario de registro de cámara abierto.",
+      "Generar reporte": "Asistente de reporte abierto.",
+      "Más filtros": "Filtros avanzados abiertos.",
+    };
+
+    showToast(confirmation || knownMessages[label] || `${label.slice(0, 72)}: acción confirmada.`);
+  };
+
   return (
-    <div className="app-shell" style={{ "--accent": module.accent, "--accent-rgb": module.accentRgb } as React.CSSProperties}>
-      <Sidebar activeView={activeView} setActiveView={setActiveView} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen}/>
+    <div className={`app-shell theme-${theme} ${sidebarCollapsed ? "is-sidebar-collapsed" : ""} ${store.settings.animations ? "" : "reduce-motion"} ${store.settings.dense ? "density-compact" : ""}`} onClickCapture={confirmButtonAction} style={{ "--accent": module.accent, "--accent-rgb": module.accentRgb } as React.CSSProperties}>
+      <Sidebar activeView={activeView} setActiveView={setActiveView} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} collapsed={sidebarCollapsed} onOpen={setActiveModal} profile={store.profile}/>
       <main className="main-shell">
-        <Topbar title={title} onMenu={()=>setMobileOpen(true)} onNotify={()=>{setToast(true); window.setTimeout(()=>setToast(false),2200);}}/>
+        <Topbar title={title} onMenu={toggleNavigation} theme={theme} onTheme={toggleTheme} onNotify={() => setActiveModal("notifications")} query={query} onQuery={setQuery}/>
         <div className="content">
           <div className="page-intro">
             <div><span className="eyebrow">VISIÓN ARTIFICIAL · TIEMPO REAL</span><h1>{activeView === "overview" ? module.name : title}</h1><p>{activeView === "overview" ? module.caption : "Plataforma VISION AI · Operación en borde"}</p></div>
-            <div className="demo-pill"><span/> PROTOTIPO VISUAL</div>
+            <div className="demo-pill functional"><span/> MODO LOCAL FUNCIONAL</div>
           </div>
           <ModuleTabs selected={activeModule} onSelect={setActiveModule}/>
-          {activeView === "overview" && <Overview module={module} isLive={isLive} setIsLive={setIsLive}/>} 
-          {activeView === "cameras" && <CamerasView module={module}/>} 
-          {activeView === "events" && <EventsView/>} 
-          {activeView === "analytics" && <AnalyticsView module={module}/>} 
-          {activeView === "reports" && <ReportsView/>} 
+          {activeView === "overview" && <Overview module={module} isLive={isLive} setIsLive={setIsLive} events={store.events}/>}
+          {activeView === "cameras" && <CamerasView module={module} cameras={store.cameras} query={query} onOpen={setActiveModal}/>}
+          {activeView === "events" && <EventsView events={store.events} query={query} advancedStatus={advancedStatus} advancedSeverity={advancedSeverity} onOpen={setActiveModal} onToast={showToast} onSelect={setSelectedEvent}/>}
+          {activeView === "analytics" && <AnalyticsView module={module}/>}
+          {activeView === "reports" && <ReportsView reports={store.reports} query={query} onOpen={setActiveModal} onToast={showToast}/>}
         </div>
       </main>
-      {toast && <div className="toast"><Bell size={18}/><div><strong>Centro de notificaciones</strong><span>Tienes 3 eventos que requieren revisión.</span></div></div>}
+      {activeModal && <VisualModal kind={activeModal} onClose={() => setActiveModal(null)} onConfirm={handleModalSubmit} selectedEvent={selectedEvent} settings={store.settings} profile={store.profile}/>}
+      {toast && <div className="toast" role="status" aria-live="polite"><CheckCircle2 size={18}/><div><strong>Acción confirmada</strong><span>{toast}</span></div></div>}
     </div>
   );
 }

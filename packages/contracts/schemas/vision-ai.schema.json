@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vision-ai.local/contracts/1.0.0/vision-ai.schema.json",
+  "title": "VISION AI Contracts",
+  "description": "Canonical entities shared by web, API and edge components.",
+  "$defs": {
+    "entityId": { "type": "string", "format": "uuid" },
+    "dateTime": { "type": "string", "format": "date-time" },
+    "useCase": { "type": "string", "enum": ["security", "quality", "retail", "mobility"] },
+    "severity": { "type": "string", "enum": ["critical", "high", "medium", "low", "info"] },
+    "cameraStatus": { "type": "string", "enum": ["online", "degraded", "offline"] },
+    "sessionStatus": { "type": "string", "enum": ["starting", "running", "paused", "stopping", "stopped", "failed"] },
+    "eventStatus": { "type": "string", "enum": ["new", "in_review", "confirmed", "resolved", "dismissed"] },
+    "boundingBox": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": { "type": "number", "minimum": 0, "maximum": 1 },
+        "y": { "type": "number", "minimum": 0, "maximum": 1 },
+        "width": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+        "height": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
+      }
+    },
+    "camera": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "siteId", "name", "location", "sourceType", "sourceRef", "enabled", "status", "activeProfile", "createdAt", "updatedAt"],
+      "properties": {
+        "id": { "$ref": "#/$defs/entityId" },
+        "siteId": { "$ref": "#/$defs/entityId" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "location": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "sourceType": { "type": "string", "enum": ["usb", "rtsp"] },
+        "sourceRef": { "type": "string", "minLength": 1, "description": "Opaque reference; credentials must not be exposed to the browser." },
+        "enabled": { "type": "boolean" },
+        "status": { "$ref": "#/$defs/cameraStatus" },
+        "activeProfile": { "$ref": "#/$defs/useCase" },
+        "createdAt": { "$ref": "#/$defs/dateTime" },
+        "updatedAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "cameraId", "edgeNodeId", "useCase", "status", "modelVersion", "ruleSetVersion", "startedAt"],
+      "properties": {
+        "id": { "$ref": "#/$defs/entityId" },
+        "cameraId": { "$ref": "#/$defs/entityId" },
+        "edgeNodeId": { "$ref": "#/$defs/entityId" },
+        "useCase": { "$ref": "#/$defs/useCase" },
+        "status": { "$ref": "#/$defs/sessionStatus" },
+        "modelVersion": { "type": "string", "minLength": 1 },
+        "ruleSetVersion": { "type": "string", "minLength": 1 },
+        "startedAt": { "$ref": "#/$defs/dateTime" },
+        "endedAt": { "oneOf": [{ "$ref": "#/$defs/dateTime" }, { "type": "null" }] },
+        "failureReason": { "type": ["string", "null"], "maxLength": 500 }
+      }
+    },
+    "detection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "sessionId", "cameraId", "frameId", "capturedAt", "className", "confidence", "boundingBox", "attributes"],
+      "properties": {
+        "id": { "$ref": "#/$defs/entityId" },
+        "sessionId": { "$ref": "#/$defs/entityId" },
+        "cameraId": { "$ref": "#/$defs/entityId" },
+        "frameId": { "type": "string", "minLength": 1 },
+        "capturedAt": { "$ref": "#/$defs/dateTime" },
+        "className": { "type": "string", "minLength": 1 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "boundingBox": { "$ref": "#/$defs/boundingBox" },
+        "trackId": { "type": ["string", "null"] },
+        "attributes": { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean", "null"] } }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "siteId", "sessionId", "cameraId", "useCase", "ruleId", "eventType", "title", "severity", "status", "occurredAt", "confidence", "trackIds", "metadata"],
+      "properties": {
+        "id": { "$ref": "#/$defs/entityId" },
+        "siteId": { "$ref": "#/$defs/entityId" },
+        "sessionId": { "$ref": "#/$defs/entityId" },
+        "cameraId": { "$ref": "#/$defs/entityId" },
+        "useCase": { "$ref": "#/$defs/useCase" },
+        "ruleId": { "$ref": "#/$defs/entityId" },
+        "eventType": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "severity": { "$ref": "#/$defs/severity" },
+        "status": { "$ref": "#/$defs/eventStatus" },
+        "occurredAt": { "$ref": "#/$defs/dateTime" },
+        "endedAt": { "oneOf": [{ "$ref": "#/$defs/dateTime" }, { "type": "null" }] },
+        "durationMs": { "type": ["integer", "null"], "minimum": 0 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "trackIds": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "zoneId": { "oneOf": [{ "$ref": "#/$defs/entityId" }, { "type": "null" }] },
+        "evidencePath": { "type": ["string", "null"], "description": "Optional event evidence; continuous video is out of scope." },
+        "metadata": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "eventId", "reviewerId", "decision", "reviewedAt"],
+      "properties": {
+        "id": { "$ref": "#/$defs/entityId" },
+        "eventId": { "$ref": "#/$defs/entityId" },
+        "reviewerId": { "$ref": "#/$defs/entityId" },
+        "decision": { "type": "string", "enum": ["confirmed", "false_positive", "dismissed", "escalated"] },
+        "comment": { "type": ["string", "null"], "maxLength": 2000 },
+        "reviewedAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "siteId", "name", "useCase", "ruleType", "enabled", "version", "parameters", "createdAt", "updatedAt"],
+      "properties": {
+        "id": { "$ref": "#/$defs/entityId" },
+        "siteId": { "$ref": "#/$defs/entityId" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "useCase": { "$ref": "#/$defs/useCase" },
+        "ruleType": { "type": "string", "enum": ["ppe_missing", "restricted_zone", "dwell_time", "quality_defect", "missing_part", "occupancy", "queue", "congestion", "wrong_way", "vehicle_access"] },
+        "enabled": { "type": "boolean" },
+        "version": { "type": "integer", "minimum": 1 },
+        "parameters": { "type": "object", "additionalProperties": true },
+        "createdAt": { "$ref": "#/$defs/dateTime" },
+        "updatedAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["edgeNodeId", "cameraId", "timestamp", "connectionStatus", "fps", "latencyMs", "inferenceMs", "droppedFramesPercent", "activeDetections"],
+      "properties": {
+        "edgeNodeId": { "$ref": "#/$defs/entityId" },
+        "cameraId": { "$ref": "#/$defs/entityId" },
+        "sessionId": { "oneOf": [{ "$ref": "#/$defs/entityId" }, { "type": "null" }] },
+        "timestamp": { "$ref": "#/$defs/dateTime" },
+        "connectionStatus": { "$ref": "#/$defs/cameraStatus" },
+        "fps": { "type": "number", "minimum": 0 },
+        "latencyMs": { "type": "number", "minimum": 0 },
+        "inferenceMs": { "type": "number", "minimum": 0 },
+        "droppedFramesPercent": { "type": "number", "minimum": 0, "maximum": 100 },
+        "gpuUtilizationPercent": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+        "temperatureCelsius": { "type": ["number", "null"] },
+        "activeDetections": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "siteId", "reportDate", "timezone", "status", "eventCount", "metrics", "recipients"],
+      "properties": {
+        "id": { "$ref": "#/$defs/entityId" },
+        "siteId": { "$ref": "#/$defs/entityId" },
+        "reportDate": { "type": "string", "format": "date" },
+        "timezone": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "enum": ["pending", "generating", "ready", "sent", "failed"] },
+        "eventCount": { "type": "integer", "minimum": 0 },
+        "metrics": { "type": "object", "additionalProperties": { "type": "number" } },
+        "recipients": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "format": "email" } },
+        "filePath": { "type": ["string", "null"] },
+        "providerMessageId": { "type": ["string", "null"] },
+        "generatedAt": { "oneOf": [{ "$ref": "#/$defs/dateTime" }, { "type": "null" }] },
+        "sentAt": { "oneOf": [{ "$ref": "#/$defs/dateTime" }, { "type": "null" }] },
+        "errorMessage": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

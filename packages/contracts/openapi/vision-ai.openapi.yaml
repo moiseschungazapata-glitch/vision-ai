@@ -1,0 +1,374 @@
+openapi: 3.1.0
+info:
+  title: VISION AI Operational API
+  version: 1.0.0
+  description: Contract-first REST API for cameras, sessions, events, rules and reports.
+servers:
+  - url: http://localhost:8000/api/v1
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      security: []
+      operationId: getHealth
+      responses:
+        "200":
+          description: Service health
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, contractVersion]
+                properties:
+                  status: { type: string, const: ok }
+                  contractVersion: { type: string, const: 1.0.0 }
+  /cameras:
+    get:
+      operationId: listCameras
+      parameters:
+        - $ref: "#/components/parameters/SiteId"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200": { $ref: "#/components/responses/CameraPage" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createCamera
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CameraCreate" }
+      responses:
+        "201":
+          description: Camera created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Camera" }
+        default: { $ref: "#/components/responses/Error" }
+  /cameras/{cameraId}:
+    parameters:
+      - $ref: "#/components/parameters/CameraId"
+    get:
+      operationId: getCamera
+      responses:
+        "200":
+          description: Camera
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Camera" }
+        default: { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updateCamera
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CameraUpdate" }
+      responses:
+        "200":
+          description: Updated camera
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Camera" }
+        default: { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteCamera
+      responses:
+        "204": { description: Camera deleted }
+        default: { $ref: "#/components/responses/Error" }
+  /sessions:
+    get:
+      operationId: listSessions
+      parameters:
+        - $ref: "#/components/parameters/SiteId"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Sessions
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionPage" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: startSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SessionStart" }
+      responses:
+        "202":
+          description: Session start accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        default: { $ref: "#/components/responses/Error" }
+  /sessions/{sessionId}/stop:
+    post:
+      operationId: stopSession
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "202":
+          description: Session stop accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        default: { $ref: "#/components/responses/Error" }
+  /events:
+    get:
+      operationId: listEvents
+      parameters:
+        - $ref: "#/components/parameters/SiteId"
+        - { name: status, in: query, schema: { type: string, enum: [new, in_review, confirmed, resolved, dismissed] } }
+        - { name: severity, in: query, schema: { type: string, enum: [critical, high, medium, low, info] } }
+        - { name: useCase, in: query, schema: { type: string, enum: [security, quality, retail, mobility] } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Events
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EventPage" }
+        default: { $ref: "#/components/responses/Error" }
+  /events/{eventId}:
+    get:
+      operationId: getEvent
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Event
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Event" }
+        default: { $ref: "#/components/responses/Error" }
+  /events/{eventId}/reviews:
+    post:
+      operationId: reviewEvent
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EventReviewCreate" }
+      responses:
+        "201":
+          description: Review created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EventReview" }
+        default: { $ref: "#/components/responses/Error" }
+  /rules:
+    get:
+      operationId: listRules
+      parameters: [{ $ref: "#/components/parameters/SiteId" }]
+      responses:
+        "200":
+          description: Rules
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Rule" } }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createRule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RuleCreate" }
+      responses:
+        "201":
+          description: Rule created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Rule" }
+        default: { $ref: "#/components/responses/Error" }
+  /telemetry/latest:
+    get:
+      operationId: getLatestTelemetry
+      parameters: [{ $ref: "#/components/parameters/SiteId" }]
+      responses:
+        "200":
+          description: Latest telemetry
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Telemetry" } }
+        default: { $ref: "#/components/responses/Error" }
+  /reports:
+    get:
+      operationId: listReports
+      parameters:
+        - $ref: "#/components/parameters/SiteId"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Reports
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportPage" }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: generateReport
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReportCreate" }
+      responses:
+        "202":
+          description: Report generation accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Report" }
+        default: { $ref: "#/components/responses/Error" }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    SiteId:
+      name: siteId
+      in: query
+      required: true
+      schema: { type: string, format: uuid }
+    CameraId:
+      name: cameraId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSize:
+      name: pageSize
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+  responses:
+    Error:
+      description: API error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+    CameraPage:
+      description: Paginated cameras
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/CameraPage" }
+  schemas:
+    Camera: { $ref: "../schemas/vision-ai.schema.json#/$defs/camera" }
+    Session: { $ref: "../schemas/vision-ai.schema.json#/$defs/session" }
+    Event: { $ref: "../schemas/vision-ai.schema.json#/$defs/event" }
+    EventReview: { $ref: "../schemas/vision-ai.schema.json#/$defs/review" }
+    Rule: { $ref: "../schemas/vision-ai.schema.json#/$defs/rule" }
+    Telemetry: { $ref: "../schemas/vision-ai.schema.json#/$defs/telemetry" }
+    Report: { $ref: "../schemas/vision-ai.schema.json#/$defs/report" }
+    ApiError: { $ref: "../schemas/api-error.schema.json" }
+    CameraCreate:
+      type: object
+      additionalProperties: false
+      required: [siteId, name, location, sourceType, sourceRef, activeProfile]
+      properties:
+        siteId: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 80 }
+        location: { type: string, minLength: 1, maxLength: 160 }
+        sourceType: { type: string, enum: [usb, rtsp] }
+        sourceRef: { type: string, minLength: 1 }
+        activeProfile: { type: string, enum: [security, quality, retail, mobility] }
+    CameraUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        location: { type: string, minLength: 1, maxLength: 160 }
+        enabled: { type: boolean }
+        activeProfile: { type: string, enum: [security, quality, retail, mobility] }
+    SessionStart:
+      type: object
+      additionalProperties: false
+      required: [cameraId, edgeNodeId, useCase]
+      properties:
+        cameraId: { type: string, format: uuid }
+        edgeNodeId: { type: string, format: uuid }
+        useCase: { type: string, enum: [security, quality, retail, mobility] }
+    EventReviewCreate:
+      type: object
+      additionalProperties: false
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [confirmed, false_positive, dismissed, escalated] }
+        comment: { type: string, maxLength: 2000 }
+    RuleCreate:
+      type: object
+      additionalProperties: false
+      required: [siteId, name, useCase, ruleType, enabled, parameters]
+      properties:
+        siteId: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        useCase: { type: string, enum: [security, quality, retail, mobility] }
+        ruleType: { type: string, enum: [ppe_missing, restricted_zone, dwell_time, quality_defect, missing_part, occupancy, queue, congestion, wrong_way, vehicle_access] }
+        enabled: { type: boolean }
+        parameters: { type: object, additionalProperties: true }
+    ReportCreate:
+      type: object
+      additionalProperties: false
+      required: [siteId, reportDate, timezone, recipients]
+      properties:
+        siteId: { type: string, format: uuid }
+        reportDate: { type: string, format: date }
+        timezone: { type: string, default: America/Lima }
+        recipients: { type: array, minItems: 1, items: { type: string, format: email } }
+    CameraPage:
+      allOf:
+        - { $ref: "#/components/schemas/PageBase" }
+        - type: object
+          properties:
+            items: { type: array, items: { $ref: "#/components/schemas/Camera" } }
+    SessionPage:
+      allOf:
+        - { $ref: "#/components/schemas/PageBase" }
+        - type: object
+          properties:
+            items: { type: array, items: { $ref: "#/components/schemas/Session" } }
+    EventPage:
+      allOf:
+        - { $ref: "#/components/schemas/PageBase" }
+        - type: object
+          properties:
+            items: { type: array, items: { $ref: "#/components/schemas/Event" } }
+    ReportPage:
+      allOf:
+        - { $ref: "#/components/schemas/PageBase" }
+        - type: object
+          properties:
+            items: { type: array, items: { $ref: "#/components/schemas/Report" } }
+    PageBase:
+      type: object
+      required: [items, page, pageSize, totalItems, totalPages]
+      properties:
+        items: { type: array }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1 }
+        totalItems: { type: integer, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }

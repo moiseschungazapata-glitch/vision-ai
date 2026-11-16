@@ -1,0 +1,16 @@
+[tool.pytest.ini_options]
+testpaths = ["apps/api/tests", "services/edge-agent/tests", "tests"]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["apps/api", "services/edge-agent", "packages/contracts/python"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_configs = true

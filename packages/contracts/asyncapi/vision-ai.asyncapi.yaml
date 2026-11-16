@@ -1,0 +1,89 @@
+asyncapi: 3.0.0
+info:
+  title: VISION AI Realtime API
+  version: 1.0.0
+  description: Eventos operativos enviados por WebSocket. Cada conexión conserva un sequence creciente por sitio.
+servers:
+  local:
+    host: localhost:8000
+    pathname: /ws/sites/{siteId}
+    protocol: wss
+    description: Sustituir wss por ws únicamente durante desarrollo local.
+channels:
+  siteRealtime:
+    address: /ws/sites/{siteId}
+    parameters:
+      siteId:
+        description: Identificador UUID del sitio autorizado.
+    messages:
+      eventCreated: { $ref: "#/components/messages/EventCreated" }
+      eventUpdated: { $ref: "#/components/messages/EventUpdated" }
+      telemetryUpdated: { $ref: "#/components/messages/TelemetryUpdated" }
+      cameraStatusChanged: { $ref: "#/components/messages/CameraStatusChanged" }
+      sessionStatusChanged: { $ref: "#/components/messages/SessionStatusChanged" }
+      reportReady: { $ref: "#/components/messages/ReportReady" }
+operations:
+  receiveSiteUpdates:
+    action: receive
+    channel: { $ref: "#/channels/siteRealtime" }
+    summary: Recibe actualizaciones del sitio después de autenticarse con JWT.
+components:
+  messages:
+    EventCreated:
+      name: event.created
+      payload:
+        allOf:
+          - { $ref: "../schemas/realtime-envelope.schema.json" }
+          - type: object
+            properties:
+              type: { const: event.created }
+              payload: { $ref: "../schemas/vision-ai.schema.json#/$defs/event" }
+    EventUpdated:
+      name: event.updated
+      payload:
+        allOf:
+          - { $ref: "../schemas/realtime-envelope.schema.json" }
+          - type: object
+            properties:
+              type: { const: event.updated }
+              payload: { $ref: "../schemas/vision-ai.schema.json#/$defs/event" }
+    TelemetryUpdated:
+      name: telemetry.updated
+      payload:
+        allOf:
+          - { $ref: "../schemas/realtime-envelope.schema.json" }
+          - type: object
+            properties:
+              type: { const: telemetry.updated }
+              payload: { $ref: "../schemas/vision-ai.schema.json#/$defs/telemetry" }
+    CameraStatusChanged:
+      name: camera.status_changed
+      payload:
+        allOf:
+          - { $ref: "../schemas/realtime-envelope.schema.json" }
+          - type: object
+            properties:
+              type: { const: camera.status_changed }
+              payload: { $ref: "../schemas/vision-ai.schema.json#/$defs/camera" }
+    SessionStatusChanged:
+      name: session.status_changed
+      payload:
+        allOf:
+          - { $ref: "../schemas/realtime-envelope.schema.json" }
+          - type: object
+            properties:
+              type: { const: session.status_changed }
+              payload: { $ref: "../schemas/vision-ai.schema.json#/$defs/session" }
+    ReportReady:
+      name: report.ready
+      payload:
+        allOf:
+          - { $ref: "../schemas/realtime-envelope.schema.json" }
+          - type: object
+            properties:
+              type: { const: report.ready }
+              payload: { $ref: "../schemas/vision-ai.schema.json#/$defs/report" }
+x-reconnect-policy:
+  strategy: exponential-backoff
+  delaysSeconds: [1, 2, 5, 10, 30]
+  resume: El cliente envía el último sequence recibido; si no puede reanudarse, solicita un snapshot REST.
