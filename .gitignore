@@ -18,6 +18,7 @@ node_modules/
 out/
 dist/
 coverage/
+*.tsbuildinfo
 
 # Local data, models and video
 *.pt
