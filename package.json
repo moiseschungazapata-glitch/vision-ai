@@ -9,10 +9,13 @@
   },
   "scripts": {
     "dev": "npm --prefix apps/web run dev",
+    "dev:web": "npm --prefix apps/web run dev",
+    "dev:api": "uv run --project apps/api --python 3.12 uvicorn app.main:app --reload --port 8000",
     "build": "npm --prefix apps/web run build",
     "typecheck": "npm --prefix apps/web run typecheck",
     "check:structure": "node scripts/check-structure.mjs",
     "check:contracts": "node scripts/check-contracts.mjs",
+    "check:backend": "node scripts/check-backend.mjs",
     "check": "node scripts/check-all.mjs"
   }
 }

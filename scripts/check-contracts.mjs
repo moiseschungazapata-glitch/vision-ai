@@ -105,6 +105,9 @@ const requiredOperations = [
   "getHealth", "listCameras", "createCamera", "getCamera", "updateCamera", "deleteCamera",
   "listSessions", "startSession", "stopSession", "listEvents", "getEvent", "reviewEvent",
   "listRules", "createRule", "getLatestTelemetry", "listReports", "generateReport",
+  "listSites", "createSite", "registerEdgeNode", "ingestEdgeEvent",
+  "updateEdgeCameraStatus", "updateEdgeSessionStatus", "ingestEdgeTelemetry",
+  "ingestEvent", "ingestTelemetry",
 ];
 for (const operation of requiredOperations) if (!openapi.includes(`operationId: ${operation}`)) fail(`OpenAPI no contiene ${operation}.`);
 

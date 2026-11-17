@@ -1,0 +1,27 @@
+[project]
+name = "vision-ai-api"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fastapi>=0.115.6,<0.116",
+  "uvicorn[standard]>=0.34,<0.35",
+  "httpx>=0.28,<0.29",
+  "pydantic-settings>=2.7,<2.8",
+  "email-validator>=2.2,<2.3",
+  "vision-ai-contracts",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3,<9",
+  "pytest-asyncio>=0.24,<1",
+  "ruff>=0.8,<1",
+  "mypy>=1.13,<2",
+]
+
+[tool.uv.sources]
+vision-ai-contracts = { path = "../../packages/contracts/python", editable = true }
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

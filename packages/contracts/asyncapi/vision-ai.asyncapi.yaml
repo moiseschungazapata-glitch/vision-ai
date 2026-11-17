@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: VISION AI Realtime API
-  version: 1.0.0
+  version: 1.1.0
   description: Eventos operativos enviados por WebSocket. Cada conexión conserva un sequence creciente por sitio.
 servers:
   local:

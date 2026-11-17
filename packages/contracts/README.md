@@ -1,6 +1,6 @@
 # Contratos compartidos de VISION AI
 
-Este paquete es la fuente única de verdad entre el frontend, la API y el agente edge. Su versión actual es **1.0.0**.
+Este paquete es la fuente única de verdad entre el frontend, la API y el agente edge. Su versión actual es **1.1.0**.
 
 ## Contenido
 

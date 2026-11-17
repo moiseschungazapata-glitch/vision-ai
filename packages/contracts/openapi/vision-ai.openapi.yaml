@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: VISION AI Operational API
-  version: 1.0.0
+  version: 1.1.0
   description: Contract-first REST API for cameras, sessions, events, rules and reports.
 servers:
   - url: http://localhost:8000/api/v1
@@ -22,7 +22,31 @@ paths:
                 required: [status, contractVersion]
                 properties:
                   status: { type: string, const: ok }
-                  contractVersion: { type: string, const: 1.0.0 }
+                  contractVersion: { type: string, const: 1.1.0 }
+  /sites:
+    get:
+      operationId: listSites
+      responses:
+        "200":
+          description: Sites available to the authenticated user
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Site" } }
+        default: { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createSite
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SiteCreate" }
+      responses:
+        "201":
+          description: Site created with the current user as owner
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Site" }
+        default: { $ref: "#/components/responses/Error" }
   /cameras:
     get:
       operationId: listCameras
@@ -239,12 +263,138 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Report" }
         default: { $ref: "#/components/responses/Error" }
+  /ingest/events:
+    post:
+      operationId: ingestEvent
+      security: [{ edgeToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EventIngest" }
+      responses:
+        "202":
+          description: Event accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Event" }
+        default: { $ref: "#/components/responses/Error" }
+  /ingest/telemetry:
+    post:
+      operationId: ingestTelemetry
+      security: [{ edgeToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TelemetryIngest" }
+      responses:
+        "202":
+          description: Telemetry accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Telemetry" }
+        default: { $ref: "#/components/responses/Error" }
+  /edge/nodes/register:
+    post:
+      operationId: registerEdgeNode
+      security: [{ edgeToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EdgeNodeRegister" }
+      responses:
+        "200":
+          description: Registered edge node
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EdgeNode" }
+        default: { $ref: "#/components/responses/Error" }
+  /edge/events:
+    post:
+      operationId: ingestEdgeEvent
+      security: [{ edgeToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EdgeEventCreate" }
+      responses:
+        "201":
+          description: Event accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Event" }
+        default: { $ref: "#/components/responses/Error" }
+  /edge/cameras/{cameraId}/status:
+    patch:
+      operationId: updateEdgeCameraStatus
+      security: [{ edgeToken: [] }]
+      parameters: [{ $ref: "#/components/parameters/CameraId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EdgeCameraStatus" }
+      responses:
+        "200":
+          description: Updated camera
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Camera" }
+        default: { $ref: "#/components/responses/Error" }
+  /edge/sessions/{sessionId}:
+    patch:
+      operationId: updateEdgeSessionStatus
+      security: [{ edgeToken: [] }]
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EdgeSessionUpdate" }
+      responses:
+        "200":
+          description: Updated session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        default: { $ref: "#/components/responses/Error" }
+  /edge/telemetry:
+    post:
+      operationId: ingestEdgeTelemetry
+      security: [{ edgeToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Telemetry" }
+      responses:
+        "201":
+          description: Telemetry accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Telemetry" }
+        default: { $ref: "#/components/responses/Error" }
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    edgeToken:
+      type: apiKey
+      in: header
+      name: X-Edge-Token
+    edgeToken:
+      type: apiKey
+      in: header
+      name: X-Edge-Token
   parameters:
     SiteId:
       name: siteId
@@ -276,6 +426,74 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/CameraPage" }
   schemas:
+    Site:
+      type: object
+      additionalProperties: false
+      required: [id, name, timezone, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        timezone: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    SiteCreate:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        timezone: { type: string, default: America/Lima }
+    EdgeNode:
+      type: object
+      additionalProperties: false
+      required: [id, siteId, name, status, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        siteId: { type: string, format: uuid }
+        name: { type: string }
+        status: { type: string, enum: [online, degraded, offline] }
+        lastSeenAt: { type: [string, "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    EdgeNodeRegister:
+      type: object
+      additionalProperties: false
+      required: [id, siteId, name]
+      properties:
+        id: { type: string, format: uuid }
+        siteId: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 120 }
+    EdgeCameraStatus:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { type: string, enum: [online, degraded, offline] }
+    EdgeSessionUpdate:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { type: string, enum: [running, paused, stopped, failed] }
+        endedAt: { type: [string, "null"], format: date-time }
+        failureReason: { type: [string, "null"], maxLength: 500 }
+    EdgeEventCreate:
+      type: object
+      additionalProperties: false
+      required: [siteId, sessionId, cameraId, useCase, ruleId, eventType, title, severity, occurredAt, confidence]
+      properties:
+        siteId: { type: string, format: uuid }
+        sessionId: { type: string, format: uuid }
+        cameraId: { type: string, format: uuid }
+        useCase: { type: string, enum: [security, quality, retail, mobility] }
+        ruleId: { type: string, format: uuid }
+        eventType: { type: string }
+        title: { type: string, maxLength: 160 }
+        severity: { type: string, enum: [critical, high, medium, low, info] }
+        occurredAt: { type: string, format: date-time }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        trackIds: { type: array, items: { type: string } }
+        metadata: { type: object, additionalProperties: true }
     Camera: { $ref: "../schemas/vision-ai.schema.json#/$defs/camera" }
     Session: { $ref: "../schemas/vision-ai.schema.json#/$defs/session" }
     Event: { $ref: "../schemas/vision-ai.schema.json#/$defs/event" }
@@ -339,6 +557,41 @@ components:
         reportDate: { type: string, format: date }
         timezone: { type: string, default: America/Lima }
         recipients: { type: array, minItems: 1, items: { type: string, format: email } }
+    EventIngest:
+      type: object
+      additionalProperties: false
+      required: [siteId, sessionId, cameraId, useCase, ruleId, eventType, title, severity, confidence]
+      properties:
+        id: { type: string, format: uuid }
+        siteId: { type: string, format: uuid }
+        sessionId: { type: string, format: uuid }
+        cameraId: { type: string, format: uuid }
+        useCase: { type: string, enum: [security, quality, retail, mobility] }
+        ruleId: { type: string, format: uuid }
+        eventType: { type: string, minLength: 1 }
+        title: { type: string, minLength: 1, maxLength: 160 }
+        severity: { type: string, enum: [critical, high, medium, low, info] }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        trackIds: { type: array, items: { type: string }, uniqueItems: true }
+        zoneId: { type: [string, "null"], format: uuid }
+        evidencePath: { type: [string, "null"] }
+        metadata: { type: object, additionalProperties: true }
+    TelemetryIngest:
+      type: object
+      additionalProperties: false
+      required: [edgeNodeId, cameraId, connectionStatus, fps, latencyMs, inferenceMs, droppedFramesPercent, activeDetections]
+      properties:
+        edgeNodeId: { type: string, format: uuid }
+        cameraId: { type: string, format: uuid }
+        sessionId: { type: [string, "null"], format: uuid }
+        connectionStatus: { type: string, enum: [online, degraded, offline] }
+        fps: { type: number, minimum: 0 }
+        latencyMs: { type: number, minimum: 0 }
+        inferenceMs: { type: number, minimum: 0 }
+        droppedFramesPercent: { type: number, minimum: 0, maximum: 100 }
+        gpuUtilizationPercent: { type: [number, "null"], minimum: 0, maximum: 100 }
+        temperatureCelsius: { type: [number, "null"] }
+        activeDetections: { type: integer, minimum: 0 }
     CameraPage:
       allOf:
         - { $ref: "#/components/schemas/PageBase" }

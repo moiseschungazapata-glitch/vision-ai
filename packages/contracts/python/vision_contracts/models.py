@@ -2,18 +2,22 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from enum import StrEnum
-from typing import Any, Generic, Literal, TypeVar
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-CONTRACT_VERSION = "1.0.0"
+CONTRACT_VERSION = "1.1.0"
 
 
 class ContractModel(BaseModel):
-    model_config = ConfigDict(alias_generator=lambda value: "".join(
-        word if index == 0 else word.title() for index, word in enumerate(value.split("_"))
-    ), populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(
+        alias_generator=lambda value: "".join(
+            word if index == 0 else word.title() for index, word in enumerate(value.split("_"))
+        ),
+        populate_by_name=True,
+        extra="forbid",
+    )
 
 
 class UseCase(StrEnum):
@@ -145,8 +149,15 @@ class VisionRule(ContractModel):
     name: str = Field(min_length=1, max_length=120)
     use_case: UseCase
     rule_type: Literal[
-        "ppe_missing", "restricted_zone", "dwell_time", "quality_defect",
-        "missing_part", "occupancy", "queue", "congestion", "wrong_way",
+        "ppe_missing",
+        "restricted_zone",
+        "dwell_time",
+        "quality_defect",
+        "missing_part",
+        "occupancy",
+        "queue",
+        "congestion",
+        "wrong_way",
         "vehicle_access",
     ]
     enabled: bool
@@ -194,15 +205,16 @@ class ApiError(ContractModel):
     request_id: str
 
 
-PayloadT = TypeVar("PayloadT")
-
-
-class RealtimeEnvelope(ContractModel, Generic[PayloadT]):
-    contract_version: Literal["1.0.0"] = CONTRACT_VERSION
+class RealtimeEnvelope[PayloadT](ContractModel):
+    contract_version: Literal["1.1.0"] = "1.1.0"
     message_id: UUID
     type: Literal[
-        "event.created", "event.updated", "telemetry.updated",
-        "camera.status_changed", "session.status_changed", "report.ready",
+        "event.created",
+        "event.updated",
+        "telemetry.updated",
+        "camera.status_changed",
+        "session.status_changed",
+        "report.ready",
     ]
     site_id: UUID
     sequence: int = Field(ge=0)

@@ -9,6 +9,7 @@ const npmArgs = (args) => npmCli ? [npmCli, ...args] : args;
 const commands = [
   [process.execPath, [resolve(root, "scripts/check-structure.mjs")], "estructura"],
   [process.execPath, [resolve(root, "scripts/check-contracts.mjs")], "contratos y modelos"],
+  [process.execPath, [resolve(root, "scripts/check-backend.mjs")], "backend REST y WebSocket"],
   [npmCommand, npmArgs(["--prefix", "apps/web", "run", "typecheck"]), "tipos del frontend"],
   [npmCommand, npmArgs(["--prefix", "apps/web", "run", "build"]), "compilación del frontend"],
 ];

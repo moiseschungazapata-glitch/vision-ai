@@ -4,9 +4,9 @@ build-backend = "hatchling.build"
 
 [project]
 name = "vision-ai-contracts"
-version = "1.0.0"
-requires-python = ">=3.12"
-dependencies = ["pydantic>=2.10,<3"]
+version = "1.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = ["pydantic>=2.10,<2.11"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["vision_contracts"]

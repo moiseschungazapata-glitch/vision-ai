@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 jobs:
-  structure-and-web:
-    name: Structure and frontend
+  validate:
+    name: Contracts, backend and frontend
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -29,8 +29,25 @@ jobs:
         working-directory: apps/web
         run: npm ci
 
+      - name: Configure Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install backend dependencies
+        run: uv sync --project apps/api --extra dev --python 3.12
+
       - name: Validate repository structure
         run: node scripts/check-structure.mjs
+
+      - name: Validate contracts
+        run: node scripts/check-contracts.mjs
+
+      - name: Validate backend
+        run: node scripts/check-backend.mjs
 
       - name: Check TypeScript
         working-directory: apps/web

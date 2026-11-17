@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://vision-ai.local/contracts/1.0.0/vision-ai.schema.json",
+  "$id": "https://vision-ai.local/contracts/1.1.0/vision-ai.schema.json",
   "title": "VISION AI Contracts",
   "description": "Canonical entities shared by web, API and edge components.",
   "$defs": {

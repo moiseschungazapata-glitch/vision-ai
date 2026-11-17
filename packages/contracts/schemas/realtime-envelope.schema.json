@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://vision-ai.local/contracts/1.0.0/realtime-envelope.schema.json",
+  "$id": "https://vision-ai.local/contracts/1.1.0/realtime-envelope.schema.json",
   "title": "VISION AI Realtime Envelope",
   "type": "object",
   "additionalProperties": false,
   "required": ["contractVersion", "messageId", "type", "siteId", "sequence", "occurredAt", "payload"],
   "properties": {
-    "contractVersion": { "const": "1.0.0" },
+    "contractVersion": { "const": "1.1.0" },
     "messageId": { "type": "string", "format": "uuid" },
     "type": { "type": "string", "enum": ["event.created", "event.updated", "telemetry.updated", "camera.status_changed", "session.status_changed", "report.ready"] },
     "siteId": { "type": "string", "format": "uuid" },

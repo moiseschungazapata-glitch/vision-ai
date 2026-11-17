@@ -15,6 +15,7 @@ El alcance base utiliza cámaras USB o RTSP en vivo. No contempla carga manual d
 
 - Node.js 22 y npm 10 o superior.
 - Python 3.12.
+- uv para instalar y ejecutar el entorno Python.
 - Git.
 - PowerShell en Windows.
 
@@ -27,7 +28,7 @@ powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1
 npm.cmd run dev
 ```
 
-Abre `http://localhost:3000`.
+En otra terminal ejecuta `npm.cmd run dev:api`. Abre `http://localhost:3000` para el frontend y `http://localhost:8000/docs` para la documentación de la API.
 
 El script de preparación instala el frontend, crea `.env.local` desde el ejemplo y valida la estructura. Las credenciales reales deben completarse localmente y nunca confirmarse en Git.
 
@@ -35,9 +36,12 @@ El script de preparación instala el frontend, crea `.env.local` desde el ejempl
 
 ```powershell
 npm.cmd run dev
+npm.cmd run dev:api
 npm.cmd run typecheck
 npm.cmd run build
 npm.cmd run check:structure
+npm.cmd run check:contracts
+npm.cmd run check:backend
 npm.cmd run check
 ```
 
@@ -75,9 +79,11 @@ GitHub Actions ejecuta automáticamente:
 
 1. Validación de la estructura.
 2. Instalación reproducible con `npm ci`.
-3. Verificación de TypeScript.
-4. Compilación de producción del frontend.
+3. Contratos REST/WebSocket y modelos compartidos.
+4. Estilo, tipos y pruebas del backend.
+5. Verificación de TypeScript.
+6. Compilación de producción del frontend.
 
 ## Estado
 
-La estructura inicial está completa. El frontend visual está avanzado; backend, Supabase, agente Edge, modelos de IA y reportes funcionales se implementan en las siguientes fases.
+La estructura, el frontend visual y funcional, los contratos y el backend REST/WebSocket están implementados. La conexión real queda activa al aplicar la migración y configurar las claves del proyecto Supabase. El agente Edge, los modelos de IA y la generación/envío de reportes corresponden a las fases siguientes.
